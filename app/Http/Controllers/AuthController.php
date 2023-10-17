@@ -17,19 +17,21 @@ class AuthController extends Controller
     public function register()
     {
         $validator = Validator::make(request()->all(),[
-            'name' => 'required',
-            'email' => 'required|email|unique:users',
-            'password' => 'required',
+            'name'      => 'required',
+            'email'     => 'required|email|unique:users',
+            'password'  => 'required',
+            'role'      => 'required|in:admin,member',
         ]);
 
         if($validator->fails()) {
-            return response()->json($validator->messages());
+            return response()->json($validator->messages(), 400);
         }
 
         $user = User::create([
-            'name' => request('name'),
-            'email' => request('email'),
-            'password' => Hash::make(request('password')),
+            'name'      => request('name'),
+            'email'     => request('email'),
+            'password'  => Hash::make(request('password')),
+            'role'      => request('role'),
         ]);
 
         if($user) {
@@ -41,9 +43,29 @@ class AuthController extends Controller
 
     public function login()
     {
+        $validator = Validator::make(request()->all(),[
+            'email'     => 'required|email',
+            'password'  => 'required',
+        ]);
+
+        if($validator->fails()) {
+            return response()->json($validator->messages(), 400);
+        }
+
         $credentials = request(['email', 'password']);
 
-        if (! $token = auth()->attempt($credentials)) {
+        $user = User::where('email', request('email'))->first();
+
+        if(! $user){
+            return response()->json(['status' => 'The credentials you entered did not match our records.'], 422);
+        }
+
+        $claims = [
+            'name'  => $user->name,
+            'email' => $user->email,
+        ];
+
+        if (! $token = auth()->claims($claims)->attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
@@ -52,7 +74,7 @@ class AuthController extends Controller
 
     public function me()
     {
-        return response()->json(auth()->user());
+        return response()->json(auth()->user(), 200);
     }
 
     public function logout()
